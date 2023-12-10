@@ -1,0 +1,112 @@
+var selectedPatternIndex;
+var formattedDate; 
+window.results = ""; 
+window.currentPatternName = "";
+
+
+window.download_csv = function () {
+  // Ensure that formattedDate is defined
+  formattedDate = formattedDate || (new Date().toLocaleDateString().replace(/\//g, '.'));
+
+  // Get the header without the EOL
+  var header = patterns[selectedPatternIndex].defaultHeader;
+
+  // Add the header to the beginning of the CSV content with a line break
+  var csvContent = header + '\n' + window.results;
+
+  // Add the URL to the csvContent
+  var url = window.location.href;
+  csvContent += "\nURL," + url;
+
+  // Create a dynamic filename
+  var filename = window.currentPatternName + '_' + formattedDate + '.csv';
+
+  var element = document.createElement('a');
+  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(csvContent));
+  element.setAttribute('download', filename);
+
+  element.style.display = 'none';
+  document.body.appendChild(element);
+
+  element.click();
+
+  document.body.removeChild(element);
+}
+
+  var patterns = [
+    { name: 'Select a Pattern', regex: "", defaultGroups: '0', defaultHeader: '', defaultdelimiter: '', defaulteol: '\\n' },
+    { name: 'Emails', regex: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}", defaultGroups: '0', defaultHeader: 'Email', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'Phone Numbers', regex: "(\\(\\d{3}\\)|\\d{3})[-.\\s]?\\d{3}[-.\\s]?\\d{4}", defaultGroups: '0', defaultHeader: 'Phone Number', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'USC Citations', regex: "((?:The )?[A-Z][a-z]*?(?: [A-Z][a-z]*?)*?|[A-Z]+),\\s*(\\d+)\\s*U\\.?S\\.?C\\.?\\s*(§{0,2}\\s*[0-9a-zA-Z.-]+)?(?:\\s*et\\s*seq\\.)?(?:\\s*\\((\\d{4})\\))?", defaultGroups: '1,2,3,4', defaultHeader: 'Full Citation,Title,Code,Year', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'Federal Case Names', regex: "((([A-Z][^,<]*?)(?:, Inc\.)? [vV]\\. (.*?)), (\\d+ (F\\.2d|F\\.3d|F\\.4th|U\\.S\\.) \\d+)( \\(((1st|2nd|2d|3d|3rd|[4-9]th) [Cc]ir\\. \\d+|\\d+)\\))?)", defaultGroups: '0,2,5,8', defaultHeader: 'Full Citation,Case Name,Citation,Circuit Year', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'Names', regex: "([A-Z][a-z'-]+)(?: ([A-Z][a-z'-]+|([A-Z]\\.)?)|)( ([A-Z][a-z]+(?:-[A-Z][a-z'-]+)?))", defaultGroups: '0', defaultHeader: 'First name, middle name or initial, last name', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'Dates', regex: "((?:\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})|(?:\\d{1,2}(?:st|nd|rd|th)?\\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember))\\s*,?\\s*\\d{4})|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember))\\s*\\d{1,2}(?:st|nd|rd|th)?\\s*,?\\s*\\d{4})", defaultGroups: '0', defaultHeader: 'Date', defaultdelimiter: ',', defaulteol: '\\n' },
+    { name: 'Massachusetts General Law', regex: "\\b(?:\\d+\\s*)?M\\.G\\.L\\.?\\s*c\\.\\s*\\d+(?:,\\s*§\\s*\\d+)?(?:\\s*\\(\\s*\\d+\\s*\\))?\\b", defaultGroups: '0', defaultHeader: 'MGL Citation', defaultdelimiter: ',', defaulteol: '\\n' }
+  ];
+  
+  window.updateValues = function (selectedPatternIndex) {
+    // Update input fields with the new values
+    document.getElementById('regex_inputs').value = patterns[selectedPatternIndex].regex;
+    document.getElementById('regex_groups').value = patterns[selectedPatternIndex].defaultGroups;
+    document.getElementById('header').value = patterns[selectedPatternIndex].defaultHeader;
+    document.getElementById('delimiter').value = patterns[selectedPatternIndex].defaultdelimiter;
+    document.getElementById('eol').value = patterns[selectedPatternIndex].defaulteol;
+  }
+  
+  window.get_matches = function (first_run = 1) {
+    window.results = "";
+
+    // Ensure that formattedDate is defined
+    formattedDate = formattedDate || (new Date().toLocaleDateString().replace(/\//g, '.'));
+
+    var patternSelect = "<select id='patternSelect' style='width:100%' onchange='updateValues(this.selectedIndex)'>";
+    for (var i = 0; i < patterns.length; i++) {
+      patternSelect += "<option value='" + i + "'>" + patterns[i].name + "</option>";
+    }
+
+    if (first_run != 1) {
+      this_regex = RegExp(document.getElementById('regex_inputs').value, "g");
+      group_set = [];
+      groups = document.getElementById('regex_groups').value.split(",");
+
+      handles = [...document.body.innerHTML.matchAll(this_regex)].map(match => {
+        // Convert groupIndex to number and join all groups into a single string
+        //return [JSON.stringify(groups.map(groupIndex => match[Number(groupIndex)]).join(' '))];
+        //let jsonStringifiedArray = groups.map(item => JSON.stringify(item));
+        return [groups.map(groupIndex => JSON.stringify(match[Number(groupIndex)])).join(document.getElementById('delimiter').value)];
+      });
+
+      handles = [...new Set(handles)];
+      if (handles.length > 0) {
+        window.results += handles.join(document.getElementById('eol').value) + document.getElementById('eol').value;
+      }
+      var newline = String.fromCharCode(13, 10);
+      count = (window.results.split(document.getElementById('eol').value).length - 1);
+      window.results = window.results.replaceAll('\\n', newline);
+      if (count == 0) {
+        window.results = "no matches found";
+     }
+
+     // Update the selectedPatternIndex variable
+     selectedPatternIndex = document.getElementById('patternSelect').selectedIndex;
+
+       // Set window.currentPatternName to the name of the currently selected pattern
+      window.currentPatternName = patterns[selectedPatternIndex].name;
+
+      
+
+     // Call download_csv after processing all patterns
+     //window.download_csv(patterns[selectedPatternIndex].name, results, formattedDate);
+
+    } else {
+      count = 0;
+      results = "";
+    }
+
+    document.body.innerHTML += "<div id='regexspacer'><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br></div><div id='regexfind' style='position:fixed;z-index:100000;bottom:0px;width:100%;text-align:center;background:#eee;padding:5px 15px 25px 15px;border-top: solid 1px black;'><p style='padding:8px 0px 3px 0px;'>Pattern " + patternSelect +
+      "regex <input id='regex_inputs' style='width:100%'/>" +
+      "Group(s)<input id='regex_groups' style='width:100%'/>Headers<input id='header'  style='width:100%'/>delimiter<input id='delimiter' style='width:100%'/>End of Line<input id='eol'  style='width:100%'/></p><p style='padding:8px 0px'>" + count + " items found | <a href='' target='_blank'>stand-alone</a> | <a href='javascript:get_matches(0);'>run</a> | <a href='javascript:get_matches(0);'>run &amp; add</a> | <a href='javascript:download_csv();'>download csv</a> | <a href='javascript:document.getElementById(`regexfind`).remove();document.getElementById(`regexspacer`).remove();'>close</a></p><textarea id='headers' style='width:100%;height:180px;background:white;'>" + results + "</textarea></div>";
+  }
+  
+  get_matches(1);
+  
